@@ -69,49 +69,56 @@ export function TemplateDialog({
       onClose={onClose}
       title={template.name}
       description={template.description}
+      wide={template.fields.length > 4}
     >
-      <div className="space-y-4">
-        {template.fields.length === 0 ? (
-          <p className="text-[14px] text-muted">
-            This template starts you off with a clean structure - no setup
-            needed.
-          </p>
-        ) : (
-          template.fields.map((field) => (
-            <Field
-              key={field.key}
-              label={field.label}
-              hint={field.required ? "required" : undefined}
-            >
-              {field.key === "highlights" || field.key === "objective" ? (
-                <Textarea
-                  rows={3}
-                  value={values[field.key] ?? ""}
-                  placeholder={field.placeholder}
-                  onChange={(event) =>
-                    setValues((prev) => ({ ...prev, [field.key]: event.target.value }))
-                  }
-                />
-              ) : (
-                <Input
-                  value={values[field.key] ?? ""}
-                  placeholder={field.placeholder}
-                  onChange={(event) =>
-                    setValues((prev) => ({ ...prev, [field.key]: event.target.value }))
-                  }
-                />
-              )}
-            </Field>
-          ))
-        )}
+      <div className="flex max-h-[calc(85vh-130px)] flex-col">
+        <div className="flex-1 space-y-4 overflow-y-auto px-1 py-1">
+          {template.fields.length === 0 ? (
+            <p className="text-[14px] text-muted">
+              This template starts you off with a clean structure - no setup
+              needed.
+            </p>
+          ) : (
+            template.fields.map((field) => (
+              <Field
+                key={field.key}
+                label={field.label}
+                hint={field.required ? "required" : undefined}
+              >
+                {field.key === "highlights" ||
+                field.key === "objective" ||
+                field.key.toLowerCase().includes("description") ||
+                field.key.toLowerCase().includes("reasons") ||
+                field.key.toLowerCase().includes("instances") ? (
+                  <Textarea
+                    rows={3}
+                    value={values[field.key] ?? ""}
+                    placeholder={field.placeholder}
+                    onChange={(event) =>
+                      setValues((prev) => ({ ...prev, [field.key]: event.target.value }))
+                    }
+                  />
+                ) : (
+                  <Input
+                    value={values[field.key] ?? ""}
+                    placeholder={field.placeholder}
+                    onChange={(event) =>
+                      setValues((prev) => ({ ...prev, [field.key]: event.target.value }))
+                    }
+                  />
+                )}
+              </Field>
+            ))
+          )}
+        </div>
 
         {error ? (
-          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-danger">
+          <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-danger">
             {error}
           </p>
         ) : null}
 
-        <div className="flex justify-end gap-2 pt-1">
+        <div className="flex justify-end gap-2 border-t border-line pt-3 mt-3">
           <Button variant="ghost" onClick={onClose} type="button">
             Cancel
           </Button>
