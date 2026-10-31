@@ -27,6 +27,7 @@ import {
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import { logClient } from "@/lib/client-log";
 import type { DocContent } from "@/lib/types";
 
 type ToolProps = {
@@ -142,12 +143,12 @@ export function DocumentEditor({
             return;
           }
         } catch (err) {
-          console.error("setContent failed", err);
+          logClient("error", "setContent failed", err);
           settle(attempt + 1);
           return;
         }
         if (attempt >= 180) {
-          console.error("setContent never applied");
+          logClient("error", "setContent never applied");
           settle(attempt + 1);
           return;
         }

@@ -6,6 +6,7 @@ The storage provider is reached only through the storage adapter.
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,6 +18,8 @@ from app.models import Document, Export
 from app.services.content import parse_content, to_html, plain_text
 from app.services.export import build_docx, render_pdf_from_docx, render_pdf_from_html
 from app.services.storage import get_storage
+
+_logger = logging.getLogger(__name__)
 
 DOCX_MIME = (
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -111,6 +114,9 @@ def perform_export(export_id: str) -> dict[str, Any]:
         return {"id": export.id, "status": "succeeded", "size": stored.size}
     except Exception as exc:  # noqa: BLE001 - job failures are recorded, not raised
         db.rollback()
+        _logger.exception(
+            "export %s failed while rendering/uploading: %s", export_id, exc
+        )
         if export is not None:
             export = db.get(Export, export.id)
             if export is not None:

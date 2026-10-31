@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import logging
+import time
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -10,13 +13,21 @@ from fastapi.responses import JSONResponse
 from http.cookies import SimpleCookie
 from starlette.datastructures import Headers
 
+from app import logging_setup
 from app.config import settings
 from app.db import Base, SessionLocal, engine
-from app.routes import ai, auth, documents, exports, templates
+from app.routes import ai, auth, documents, exports, logs, templates
 from app.schemas import HealthOut
 from app.security import verify_signed_token
 from app.seed import seed_templates
 from app.services.storage import get_storage
+
+logging_setup.configure_logging()
+_logger = logging.getLogger("app.main")
+
+# Railway's healthchecks hit /health and /api/health continuously; showing
+# them on every line drowns out application traffic.
+_QUIET_PATHS = ("/health", "/api/health")
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
@@ -88,6 +99,64 @@ async def lifespan(app: FastAPI):
     yield
 
 
+class LoggingMiddleware:
+    """One access line per request and an X-Request-Id response header.
+
+    Registered outermost so it also covers 4xx/5xx answers produced by the
+    CSRF middleware and every other layer. Unhandled exceptions re-raise after
+    logging, so uvicorn's traceback handling stays in charge.
+    """
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        request_id = uuid.uuid4().hex[:8]
+        method = scope.get("method", "GET").upper()
+        # Strip query strings: they are usually noise (or credentials).
+        path = scope.get("path", "")
+
+        status_holder = {"status": 0}
+
+        async def send_wrapper(message) -> None:
+            if message["type"] == "http.response.start":
+                status_holder["status"] = message["status"]
+                headers = list(message.get("headers") or [])
+                headers.append((b"x-request-id", request_id.encode()))
+                message = {**message, "headers": headers}
+            await send(message)
+
+        started = time.perf_counter()
+        try:
+            await self.app(scope, receive, send_wrapper)
+        except Exception:
+            elapsed_ms = (time.perf_counter() - started) * 1000
+            _logger.exception(
+                "%s %s 500 %.0fms rid=%s (unhandled exception)",
+                method,
+                path,
+                elapsed_ms,
+                request_id,
+            )
+            raise
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        line = "%s %s %d %.0fms rid=%s" % (
+            method,
+            path,
+            status_holder["status"],
+            elapsed_ms,
+            request_id,
+        )
+        if path in _QUIET_PATHS:
+            _logger.debug(line)
+        else:
+            _logger.info(line)
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title="DocsDrafter API",
@@ -112,12 +181,15 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # Outermost: sees every request, including CSRF 403s.
+    app.add_middleware(LoggingMiddleware)
 
     app.include_router(auth.router)
     app.include_router(templates.router)
     app.include_router(documents.router)
     app.include_router(ai.router)
     app.include_router(exports.router)
+    app.include_router(logs.router)
 
     @app.get("/health", response_model=HealthOut, tags=["health"])
     def health() -> HealthOut:

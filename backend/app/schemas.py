@@ -65,6 +65,17 @@ class CsrfOut(APIModel):
     csrf_token: str
 
 
+# --- browser log ingestion ---------------------------------------------------
+
+
+class ClientLogIn(APIModel):
+    level: Literal["error", "warn", "info"] = "error"
+    message: str = Field(min_length=1, max_length=2000)
+    stack: str | None = Field(default=None, max_length=8000)
+    url: str | None = Field(default=None, max_length=2048)
+    user_agent: str | None = Field(default=None, max_length=400)
+
+
 # --- templates ---------------------------------------------------------------
 
 

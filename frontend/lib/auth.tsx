@@ -12,6 +12,7 @@ import {
 } from "react";
 
 import { api, ApiError } from "@/lib/api";
+import { reportError } from "@/lib/client-log";
 import type { User } from "@/lib/types";
 
 type AuthContextValue = {
@@ -35,7 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(me);
     } catch (error) {
       if (error instanceof ApiError && error.status !== 401) {
-        console.error(error);
+        reportError(error, { source: "auth.refresh" });
       }
       setUser(null);
     } finally {
@@ -50,7 +51,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const me = await api<User>("/api/auth/me");
         if (!cancelled) setUser(me);
       } catch (error) {
-        if (error instanceof ApiError && error.status !== 401) console.error(error);
+        if (error instanceof ApiError && error.status !== 401)
+          reportError(error, { source: "auth.initial" });
         if (!cancelled) setUser(null);
       } finally {
         if (!cancelled) setLoading(false);

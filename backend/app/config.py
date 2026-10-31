@@ -22,6 +22,7 @@ class Settings(BaseSettings):
 
     # Core ------------------------------------------------------------------
     environment: str = "development"
+    log_level: str = "info"
     secret_key: str = "dev-only-insecure-secret-key-change-me"
     database_url: str = "sqlite:///./dev.db"
     redis_url: str = "redis://localhost:6379/0"

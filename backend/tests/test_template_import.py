@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from datetime import datetime
 
@@ -32,17 +33,40 @@ from app.seed import seed_templates  # noqa: E402
 # before the template tests run.
 @pytest.fixture(scope="session", autouse=True)
 def _seed_imported_templates():
+    # Make the fixture idempotent: previously imported rows (e.g. from an
+    # earlier run of this persistent test database) are replaced with fresh
+    # inserts for the full row set. This file's tests do not reset the DB per
+    # test (they build raw TestClients), so the cleanup guards against stale
+    # leftovers from earlier runs.
+    with SessionLocal() as db:
+        db.query(Template).filter(Template.is_builtin.is_(False)).delete()
+        db.commit()
+
+    # Templates must be visible to the test user of `_client()`; the route
+    # filters to builtin OR owner. Insert them for that user.
+    from app.models import User
+    from app.security import hash_password
+
+    with SessionLocal() as db:
+        user = db.query(User).filter(User.email == "import@example.com").first()
+        if user is None:
+            user = User(
+                email="import@example.com",
+                password_hash=hash_password("correct-horse-battery"),
+                name="Imported",
+            )
+            db.add(user)
+            db.commit()
+        owner_id = user.id
+
     with open(IMPORT_PATH, encoding="utf-8") as f:
         rows = json.load(f)
 
-    # Make the fixture idempotent: drop any previously imported rows, then
-    # re-insert all 23. The conftest resets the DB per session, so this is
-    # safe; the check guards against the first run on an already-seeded DB.
+    def _slugify(text: str) -> str:
+        return re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")
+
     with SessionLocal() as db:
-        existing_slugs = {r[0] for r in db.query(Template.slug).all()}
         for row in rows:
-            if row["id"] in existing_slugs:
-                continue
             fields = []
             for f in row.get("fields") or []:
                 fields.append(
@@ -55,15 +79,21 @@ def _seed_imported_templates():
                         "default": f.get("default", ""),
                     }
                 )
+            # The imported structure is a list of blocks; the API contract is
+            # a tiptap-style {"type": "doc", "content": [...]} object.
+            structure = row.get("structure") or []
+            if isinstance(structure, list):
+                structure = {"type": "doc", "content": structure}
             template = Template(
-                slug=row["id"],
+                id=row["id"],
+                slug=_slugify(row.get("name", "")) or row["id"],
                 name=row.get("name", ""),
                 description=row.get("description", ""),
                 category=row.get("category", "Imported"),
                 icon=row.get("icon", "file"),
                 is_builtin=False,
-                owner_id="7519c7ce-65e1-4906-9c57-6a72a5f19d8f",
-                structure=row.get("structure") or {"type": "doc", "content": []},
+                owner_id=owner_id,
+                structure=structure,
                 fields=fields,
                 created_at=datetime.fromisoformat(
                     row.get("created_at", "").replace("Z", "+00:00")
@@ -103,8 +133,13 @@ def _client() -> tuple[TestClient, dict[str, str]]:
     )
     assert response.status_code == 200, response.text
 
-    # Read the session + CSRF cookies set by login.
+    # Read the session + CSRF cookies set by login. httpx keys its jar by
+    # cookie name (dd_csrf / dd_session), but the tests below index the dict
+    # as "csrfToken", so alias the CSRF token under that key.
     cookies = {k: v for k, v in client.cookies.items()}
+    login_csrf = client.cookies.get("dd_csrf")
+    if login_csrf:
+        cookies["csrfToken"] = login_csrf
     return client, cookies
 
 
