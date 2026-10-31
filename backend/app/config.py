@@ -53,6 +53,23 @@ class Settings(BaseSettings):
     pdf_renderer: str = "playwright"  # "playwright" | "libreoffice"
     libreoffice_bin: str = "soffice"
 
+    @field_validator("database_url", mode="after")
+    @classmethod
+    def _psycopg_scheme(cls, value: str) -> str:
+        # Managed providers (Railway, Supabase, ...) hand out bare
+        # ``postgresql://`` URLs (or the legacy ``postgres://`` form), which
+        # SQLAlchemy would route to the psycopg2 dialect. Some platforms /
+        # past configs even pin ``postgresql+psycopg2://`` explicitly. This
+        # project ships psycopg 3 only, so always make the dialect explicit.
+        for prefix in ("postgres+psycopg2://", "postgresql+psycopg2://"):
+            if value.startswith(prefix):
+                return "postgresql+psycopg://" + value[len(prefix):]
+        if value.startswith("postgres://"):
+            value = "postgresql://" + value[len("postgres://"):]
+        if value.startswith("postgresql://"):
+            return "postgresql+psycopg://" + value[len("postgresql://"):]
+        return value
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:
