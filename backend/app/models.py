@@ -59,7 +59,7 @@ class AuthSession(Base):
     user_id: Mapped[str] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
-    csrf_token: Mapped[str] = mapped_column(String(64))
+    csrf_token: Mapped[str] = mapped_column(String(128))
     user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
