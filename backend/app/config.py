@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     storage_backend: str = "local"  # "uploadthing" | "local"
     uploadthing_api_key: str | None = None
     uploadthing_app_id: str | None = None
-    uploadthing_acl: str = "private"
+    uploadthing_acl: str = "public-read"
     local_storage_dir: str = ".data/files"
 
     # PDF -------------------------------------------------------------------

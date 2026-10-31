@@ -66,10 +66,10 @@ class UploadThingStorage:
             if not upload_url:
                 raise UploadThingError(f"prepareUpload returned no url: {payload}")
 
+            # Ingest endpoint accepts multipart/form-data for the binary payload.
             put = client.put(
                 upload_url,
-                content=data,
-                headers={"Content-Type": content_type},
+                files={"file": (filename, data, content_type)},
             )
             if put.status_code >= 400:
                 raise UploadThingError(

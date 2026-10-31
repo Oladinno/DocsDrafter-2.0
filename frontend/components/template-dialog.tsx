@@ -86,10 +86,10 @@ export function TemplateDialog({
                 hint={field.required ? "required" : undefined}
               >
                 {field.key === "highlights" ||
-                field.key === "objective" ||
-                field.key.toLowerCase().includes("description") ||
-                field.key.toLowerCase().includes("reasons") ||
-                field.key.toLowerCase().includes("instances") ? (
+                  field.key === "objective" ||
+                  field.key.toLowerCase().includes("description") ||
+                  field.key.toLowerCase().includes("reasons") ||
+                  field.key.toLowerCase().includes("instances") ? (
                   <Textarea
                     rows={3}
                     value={values[field.key] ?? ""}
