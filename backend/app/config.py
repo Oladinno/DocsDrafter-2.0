@@ -9,8 +9,10 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from typing import Annotated
+
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -26,7 +28,12 @@ class Settings(BaseSettings):
     celery_broker_url: str | None = None
     task_mode: str = "inline"  # "celery" | "inline"
     auto_create_tables: bool = True
-    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
+    # ``NoDecode`` keeps the env source from json.loads()-ing the raw value
+    # (which would crash on plain https:// urls). The ``_split_origins``
+    # validator below then accepts both JSON arrays and comma-separated lists.
+    cors_origins: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["http://localhost:3000"]
+    )
 
     # Sessions / CSRF -------------------------------------------------------
     cookie_secure: bool = False
