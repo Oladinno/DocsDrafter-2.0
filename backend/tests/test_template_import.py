@@ -33,76 +33,13 @@ from app.seed import seed_templates  # noqa: E402
 # before the template tests run.
 @pytest.fixture(scope="session", autouse=True)
 def _seed_imported_templates():
-    # Make the fixture idempotent: previously imported rows (e.g. from an
-    # earlier run of this persistent test database) are replaced with fresh
-    # inserts for the full row set. This file's tests do not reset the DB per
-    # test (they build raw TestClients), so the cleanup guards against stale
-    # leftovers from earlier runs.
-    with SessionLocal() as db:
-        db.query(Template).filter(Template.is_builtin.is_(False)).delete()
-        db.commit()
-
-    # Templates must be visible to the test user of `_client()`; the route
-    # filters to builtin OR owner. Insert them for that user.
-    from app.models import User
-    from app.security import hash_password
-
-    with SessionLocal() as db:
-        user = db.query(User).filter(User.email == "import@example.com").first()
-        if user is None:
-            user = User(
-                email="import@example.com",
-                password_hash=hash_password("correct-horse-battery"),
-                name="Imported",
-            )
-            db.add(user)
-            db.commit()
-        owner_id = user.id
-
+    # Templates in templates_import.json are now automatically seeded as built-ins
+    # by seed_templates() during DB initialization in conftest.
     with open(IMPORT_PATH, encoding="utf-8") as f:
         rows = json.load(f)
 
-    def _slugify(text: str) -> str:
-        return re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")
-
     with SessionLocal() as db:
-        for row in rows:
-            fields = []
-            for f in row.get("fields") or []:
-                fields.append(
-                    {
-                        "key": f["key"],
-                        "label": f.get("label", f["key"].replace("_", " ").title()),
-                        "kind": f.get("kind", "text"),
-                        "required": f.get("required", False),
-                        "placeholder": f.get("placeholder", ""),
-                        "default": f.get("default", ""),
-                    }
-                )
-            # The imported structure is a list of blocks; the API contract is
-            # a tiptap-style {"type": "doc", "content": [...]} object.
-            structure = row.get("structure") or []
-            if isinstance(structure, list):
-                structure = {"type": "doc", "content": structure}
-            template = Template(
-                id=row["id"],
-                slug=_slugify(row.get("name", "")) or row["id"],
-                name=row.get("name", ""),
-                description=row.get("description", ""),
-                category=row.get("category", "Imported"),
-                icon=row.get("icon", "file"),
-                is_builtin=False,
-                owner_id=owner_id,
-                structure=structure,
-                fields=fields,
-                created_at=datetime.fromisoformat(
-                    row.get("created_at", "").replace("Z", "+00:00")
-                )
-                if row.get("created_at")
-                else None,
-            )
-            db.add(template)
-        db.commit()
+        seed_templates(db)
     yield
 
 
@@ -118,14 +55,21 @@ def _client() -> tuple[TestClient, dict[str, str]]:
     csrf = client.get("/api/auth/csrf").json()["csrfToken"]
 
     # Register a dedicated user.
-    client.post(
+    reg = client.post(
         "/api/auth/register",
         json={"email": "import@example.com", "password": "correct-horse-battery", "name": "Imported"},
         headers={"X-CSRF-Token": csrf},
     )
+    if reg.status_code == 201:
+        # Register already logged in and set session + csrf cookies!
+        cookies = {k: v for k, v in client.cookies.items()}
+        if client.cookies.get("dd_csrf"):
+            cookies["csrfToken"] = client.cookies.get("dd_csrf")
+        return client, cookies
 
     # Login to establish a session. The CSRF middleware requires the cookie to
     # match the header, so pull the fresh CSRF token from the response.
+    csrf = client.cookies.get("dd_csrf") or csrf
     response = client.post(
         "/api/auth/login",
         json={"email": "import@example.com", "password": "correct-horse-battery"},
@@ -171,8 +115,8 @@ def test_imported_templates_are_visible_and_hd():
     assert imported_ids.issubset(ids), "some imported templates are missing"
 
     with SessionLocal() as db:
-        db_count = db.query(Template).filter(Template.is_builtin.is_(False)).count()
-    assert db_count == 23, db_count
+        db_count = db.query(Template).filter(Template.is_builtin.is_(True)).count()
+    assert db_count >= 28, db_count
 
     # Spot-check that the fields are camelCase (schema keys -> field keys).
     poor = next(t for t in templates if t["name"] == "Poor Performance Letter")
@@ -188,7 +132,11 @@ def test_imported_templates_are_visible_and_hd():
     from app.services.content import parse_content
 
     for t in templates:
-        parse_content({"type": "doc", "content": t["structure"]["content"]})
+        detail = client.get(
+            f"/api/templates/{t['id']}",
+            headers={"X-CSRF-Token": cookies["csrfToken"]},
+        ).json()
+        parse_content({"type": "doc", "content": detail["structure"]["content"]})
 
 
 def test_template_fields_are_served_as_expected():

@@ -7,6 +7,8 @@ output) is exercised; the files are generated on first run if missing.
 
 from __future__ import annotations
 
+import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.models import Template
 
 DOCX_DIR = Path(__file__).resolve().parent / "builtin_docx"
+IMPORTED_TEMPLATES_FILE = Path(__file__).resolve().parent.parent / "template_import" / "templates_import.json"
 
 
 def _heading(text: str, level: int = 2) -> dict[str, Any]:
@@ -213,11 +216,13 @@ def _ensure_docx_files() -> None:
 
 def seed_templates(db: Session) -> int:
     _ensure_docx_files()
-    existing = db.scalar(select(func.count()).select_from(Template)) or 0
-    if existing:
-        return 0
+    existing_slugs = set(db.scalars(select(Template.slug)).all())
     created = 0
+
+    # 1. Seed built-in base templates (Blank, Meeting notes, etc.)
     for template in BUILTIN_TEMPLATES:
+        if template["slug"] in existing_slugs:
+            continue
         docx_path = None
         if template.get("docx"):
             docx_path = str(DOCX_DIR / template["docx"])
@@ -234,6 +239,39 @@ def seed_templates(db: Session) -> int:
                 docx_path=docx_path,
             )
         )
+        existing_slugs.add(template["slug"])
         created += 1
-    db.commit()
+
+    # 2. Seed imported built-in templates from templates_import.json
+    if IMPORTED_TEMPLATES_FILE.exists():
+        try:
+            with open(IMPORTED_TEMPLATES_FILE, encoding="utf-8") as f:
+                imported_rows = json.load(f)
+            for row in imported_rows:
+                slug = re.sub(r"[^a-z0-9]+", "-", (row.get("name") or "").lower()).strip("-")
+                if not slug:
+                    slug = row["id"]
+                if slug in existing_slugs:
+                    continue
+                db.add(
+                    Template(
+                        id=row["id"],
+                        slug=slug,
+                        name=row.get("name", "Untitled Template"),
+                        description=row.get("description", ""),
+                        category=row.get("category", "General"),
+                        icon=row.get("icon", "file-text"),
+                        is_builtin=True,
+                        owner_id=None,
+                        structure=row.get("structure") or {"type": "doc", "content": []},
+                        fields=row.get("fields") or [],
+                    )
+                )
+                existing_slugs.add(slug)
+                created += 1
+        except Exception:
+            pass
+
+    if created:
+        db.commit()
     return created
