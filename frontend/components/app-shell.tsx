@@ -1,6 +1,15 @@
 "use client";
 
-import { FileText, LayoutTemplate, LogOut, Search, Sparkles } from "lucide-react";
+import {
+  Briefcase,
+  Building2,
+  FileText,
+  LayoutTemplate,
+  LogOut,
+  Search,
+  Sparkles,
+  Users,
+} from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 
@@ -24,6 +33,8 @@ export function AppShell({
   const nav = [
     { href: "/dashboard", label: "Documents", icon: FileText },
     { href: "/templates", label: "Templates", icon: LayoutTemplate },
+    { href: "/employees", label: "Employees", icon: Users },
+    { href: "/recruitment", label: "Recruitment", icon: Briefcase },
   ];
 
   return (
@@ -34,9 +45,11 @@ export function AppShell({
             <span className="flex h-7 w-7 items-center justify-center rounded-md bg-brand text-white">
               <Sparkles size={15} />
             </span>
-            <span className="font-display text-[15px] font-semibold tracking-tight text-ink">
-              DocsDrafter
-            </span>
+            <div className="flex flex-col">
+              <span className="font-display text-[15px] font-semibold tracking-tight text-ink">
+                DocsDrafter <span className="rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-bold text-brand uppercase tracking-wider">HRMS</span>
+              </span>
+            </div>
           </a>
 
           <nav className="ml-2 hidden items-center gap-1 sm:flex">

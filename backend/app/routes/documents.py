@@ -124,6 +124,10 @@ def _summary(document: Document, version_count: int = 0) -> DocumentSummaryOut:
         title=document.title,
         status=document.status,
         template_id=document.template_id,
+        employee_id=document.employee_id,
+        candidate_id=document.candidate_id,
+        category=document.category or "general",
+        document_type=document.document_type or "custom",
         word_count=document.word_count or 0,
         version_count=version_count,
         created_at=document.created_at,
@@ -208,6 +212,10 @@ def create_document(
     document = Document(
         owner_id=user.id,
         template_id=template.id if template else None,
+        employee_id=payload.employee_id,
+        candidate_id=payload.candidate_id,
+        category=payload.category or "general",
+        document_type=payload.document_type or "custom",
         title=title[:255],
         content=content.model_dump(exclude_none=True),
         source=source,
@@ -256,6 +264,14 @@ def update_document(
         document.title = (title or "Untitled document")[:255]
     if data.get("status") is not None:
         document.status = data["status"][:30]
+    if data.get("category") is not None:
+        document.category = data["category"][:50]
+    if data.get("document_type") is not None:
+        document.document_type = data["document_type"][:50]
+    if "employee_id" in data:
+        document.employee_id = data["employee_id"]
+    if "candidate_id" in data:
+        document.candidate_id = data["candidate_id"]
     if data.get("source") is not None:
         document.source = dict(data["source"] or {})
     if content_changed:

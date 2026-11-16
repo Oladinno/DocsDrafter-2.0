@@ -16,7 +16,17 @@ from starlette.datastructures import Headers
 from app import logging_setup
 from app.config import settings
 from app.db import Base, SessionLocal, engine
-from app.routes import ai, auth, documents, exports, logs, templates
+from app.routes import (
+    ai,
+    auth,
+    departments,
+    documents,
+    employees,
+    exports,
+    logs,
+    recruitment,
+    templates,
+)
 from app.schemas import HealthOut
 from app.security import verify_signed_token
 from app.seed import seed_templates
@@ -190,6 +200,9 @@ def create_app() -> FastAPI:
     app.include_router(ai.router)
     app.include_router(exports.router)
     app.include_router(logs.router)
+    app.include_router(departments.router)
+    app.include_router(employees.router)
+    app.include_router(recruitment.router)
 
     @app.get("/health", response_model=HealthOut, tags=["health"])
     def health() -> HealthOut:

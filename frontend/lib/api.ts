@@ -102,6 +102,11 @@ export const apiPatch = <T>(path: string, body: unknown) =>
 export const apiDelete = <T = void>(path: string) =>
   api<T>(path, { method: "DELETE" });
 
+api.get = apiGet;
+api.post = apiPost;
+api.patch = apiPatch;
+api.delete = apiDelete;
+
 /** Absolute URL for a backend download path (ownership is checked server-side). */
 export function absoluteUrl(path: string): string {
   if (!path) return "";

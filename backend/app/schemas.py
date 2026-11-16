@@ -58,6 +58,7 @@ class UserOut(APIModel):
     id: str
     email: str
     name: str
+    role: str = "admin"
     created_at: datetime
 
 
@@ -118,6 +119,10 @@ class TemplateCreateIn(APIModel):
 class DocumentCreateIn(APIModel):
     title: str = Field(default="", max_length=255)
     template_id: str | None = None
+    employee_id: str | None = None
+    candidate_id: str | None = None
+    category: str = Field(default="general", max_length=50)
+    document_type: str = Field(default="custom", max_length=50)
     content: dict[str, Any] | None = None
     source: dict[str, Any] = Field(default_factory=dict)
 
@@ -125,6 +130,10 @@ class DocumentCreateIn(APIModel):
 class DocumentUpdateIn(APIModel):
     title: str | None = Field(default=None, max_length=255)
     status: str | None = Field(default=None, max_length=30)
+    category: str | None = Field(default=None, max_length=50)
+    document_type: str | None = Field(default=None, max_length=50)
+    employee_id: str | None = None
+    candidate_id: str | None = None
     content: dict[str, Any] | None = None
     source: dict[str, Any] | None = None
 
@@ -134,6 +143,10 @@ class DocumentSummaryOut(APIModel):
     title: str
     status: str
     template_id: str | None = None
+    employee_id: str | None = None
+    candidate_id: str | None = None
+    category: str = "general"
+    document_type: str = "custom"
     word_count: int = 0
     version_count: int = 0
     created_at: datetime
@@ -238,3 +251,220 @@ class HealthOut(APIModel):
     storage: str
     tasks: str
     environment: str
+
+
+# ============================================================================
+# HR & Recruitment Schemas
+# ============================================================================
+
+
+# --- Departments ---
+
+
+class DepartmentBase(APIModel):
+    name: str = Field(min_length=1, max_length=100)
+    code: str = Field(min_length=1, max_length=20)
+    description: str = Field(default="", max_length=500)
+    manager_id: str | None = None
+
+
+class DepartmentCreateIn(DepartmentBase):
+    pass
+
+
+class DepartmentUpdateIn(APIModel):
+    name: str | None = Field(default=None, max_length=100)
+    code: str | None = Field(default=None, max_length=20)
+    description: str | None = Field(default=None, max_length=500)
+    manager_id: str | None = None
+
+
+class DepartmentOut(DepartmentBase):
+    id: str
+    created_at: datetime
+    employee_count: int = 0
+
+
+# --- Employees ---
+
+
+class EmployeeBase(APIModel):
+    employee_code: str = Field(min_length=1, max_length=30)
+    first_name: str = Field(min_length=1, max_length=60)
+    last_name: str = Field(min_length=1, max_length=60)
+    email: str = Field(min_length=3, max_length=320)
+    phone: str | None = Field(default=None, max_length=30)
+    job_title: str = Field(min_length=1, max_length=100)
+    department_id: str | None = None
+    manager_id: str | None = None
+    employment_status: str = Field(default="active", max_length=30)
+    employment_type: str = Field(default="full_time", max_length=30)
+    hire_date: datetime | None = None
+    termination_date: datetime | None = None
+    salary: int | None = None
+    currency: str = Field(default="USD", max_length=10)
+    notes: str = Field(default="")
+    user_id: str | None = None
+
+
+class EmployeeCreateIn(EmployeeBase):
+    pass
+
+
+class EmployeeUpdateIn(APIModel):
+    employee_code: str | None = Field(default=None, max_length=30)
+    first_name: str | None = Field(default=None, max_length=60)
+    last_name: str | None = Field(default=None, max_length=60)
+    email: str | None = Field(default=None, max_length=320)
+    phone: str | None = Field(default=None, max_length=30)
+    job_title: str | None = Field(default=None, max_length=100)
+    department_id: str | None = None
+    manager_id: str | None = None
+    employment_status: str | None = Field(default=None, max_length=30)
+    employment_type: str | None = Field(default=None, max_length=30)
+    hire_date: datetime | None = None
+    termination_date: datetime | None = None
+    salary: int | None = None
+    currency: str | None = Field(default=None, max_length=10)
+    notes: str | None = None
+    user_id: str | None = None
+
+
+class EmployeeSummaryOut(APIModel):
+    id: str
+    employee_code: str
+    first_name: str
+    last_name: str
+    email: str
+    phone: str | None = None
+    job_title: str
+    department_id: str | None = None
+    department_name: str | None = None
+    manager_id: str | None = None
+    manager_name: str | None = None
+    employment_status: str
+    employment_type: str
+    hire_date: datetime | None = None
+    created_at: datetime
+
+
+class EmployeeDetailOut(EmployeeSummaryOut):
+    salary: int | None = None
+    currency: str = "USD"
+    notes: str = ""
+    user_id: str | None = None
+    termination_date: datetime | None = None
+    document_count: int = 0
+
+
+class EmployeeListOut(APIModel):
+    items: list[EmployeeSummaryOut]
+    total: int = 0
+
+
+# --- Recruitment: Job Postings ---
+
+
+class JobPostingBase(APIModel):
+    title: str = Field(min_length=1, max_length=150)
+    department_id: str | None = None
+    employment_type: str = Field(default="full_time", max_length=30)
+    location: str = Field(default="Remote", max_length=100)
+    salary_range: str | None = Field(default=None, max_length=100)
+    description: str = Field(default="")
+    requirements: str = Field(default="")
+    status: str = Field(default="open", max_length=30)
+
+
+class JobPostingCreateIn(JobPostingBase):
+    pass
+
+
+class JobPostingUpdateIn(APIModel):
+    title: str | None = Field(default=None, max_length=150)
+    department_id: str | None = None
+    employment_type: str | None = Field(default=None, max_length=30)
+    location: str | None = Field(default=None, max_length=100)
+    salary_range: str | None = Field(default=None, max_length=100)
+    description: str | None = None
+    requirements: str | None = None
+    status: str | None = Field(default=None, max_length=30)
+
+
+class JobPostingOut(JobPostingBase):
+    id: str
+    department_name: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    applicant_count: int = 0
+
+
+# --- Recruitment: Candidates & Applications ---
+
+
+class CandidateBase(APIModel):
+    first_name: str = Field(min_length=1, max_length=60)
+    last_name: str = Field(min_length=1, max_length=60)
+    email: str = Field(min_length=3, max_length=320)
+    phone: str | None = Field(default=None, max_length=30)
+    resume_url: str | None = Field(default=None, max_length=512)
+    linkedin_url: str | None = Field(default=None, max_length=512)
+    source: str = Field(default="direct", max_length=60)
+    notes: str = Field(default="")
+
+
+class CandidateCreateIn(CandidateBase):
+    job_posting_id: str | None = None
+
+
+class CandidateUpdateIn(APIModel):
+    first_name: str | None = Field(default=None, max_length=60)
+    last_name: str | None = Field(default=None, max_length=60)
+    email: str | None = Field(default=None, max_length=320)
+    phone: str | None = Field(default=None, max_length=30)
+    resume_url: str | None = Field(default=None, max_length=512)
+    linkedin_url: str | None = Field(default=None, max_length=512)
+    source: str | None = Field(default=None, max_length=60)
+    notes: str | None = None
+
+
+class ApplicationOut(APIModel):
+    id: str
+    candidate_id: str
+    job_posting_id: str
+    job_title: str | None = None
+    stage: str
+    rating: int | None = None
+    notes: str = ""
+    offer_document_id: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ApplicationStageUpdateIn(APIModel):
+    stage: str = Field(min_length=1, max_length=30)
+    notes: str | None = None
+    rating: int | None = None
+
+
+class CandidateOut(CandidateBase):
+    id: str
+    created_at: datetime
+    applications: list[ApplicationOut] = Field(default_factory=list)
+
+
+# --- DocsDrafter HR Integration: Offer Letter Generation ---
+
+
+class GenerateOfferLetterIn(APIModel):
+    candidate_id: str
+    job_posting_id: str | None = None
+    template_id: str | None = None
+    salary: int
+    currency: str = "USD"
+    start_date: str
+    job_title: str
+    department_name: str | None = None
+    manager_name: str | None = None
+    custom_fields: dict[str, Any] = Field(default_factory=dict)
+

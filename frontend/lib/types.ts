@@ -25,6 +25,7 @@ export type User = {
   id: string;
   email: string;
   name: string;
+  role: string;
   createdAt: string;
 };
 
@@ -55,6 +56,10 @@ export type DocumentSummary = {
   title: string;
   status: string;
   templateId: string | null;
+  employeeId?: string | null;
+  candidateId?: string | null;
+  category?: string;
+  documentType?: string;
   wordCount: number;
   versionCount: number;
   createdAt: string;
@@ -125,3 +130,83 @@ export const STATUS_META: Record<string, { label: string; className: string }> =
   final: { label: "Final", className: "bg-emerald-50 border-emerald-200 text-emerald-700" },
   archived: { label: "Archived", className: "bg-surface-container border-line text-muted" },
 };
+
+// ============================================================================
+// HRMS & Recruitment Types
+// ============================================================================
+
+export type Department = {
+  id: string;
+  name: string;
+  code: string;
+  description: string;
+  managerId: string | null;
+  createdAt: string;
+  employeeCount: number;
+};
+
+export type Employee = {
+  id: string;
+  employeeCode: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  jobTitle: string;
+  departmentId: string | null;
+  departmentName: string | null;
+  managerId: string | null;
+  managerName: string | null;
+  employmentStatus: "active" | "on_leave" | "terminated" | "onboarding";
+  employmentType: "full_time" | "part_time" | "contractor" | "intern";
+  hireDate: string | null;
+  createdAt: string;
+  salary?: number | null;
+  currency?: string;
+  notes?: string;
+  documentCount?: number;
+};
+
+export type JobPosting = {
+  id: string;
+  title: string;
+  departmentId: string | null;
+  departmentName: string | null;
+  employmentType: string;
+  location: string;
+  salaryRange: string | null;
+  description: string;
+  requirements: string;
+  status: "draft" | "open" | "closed";
+  createdAt: string;
+  updatedAt: string;
+  applicantCount: number;
+};
+
+export type CandidateApplication = {
+  id: string;
+  candidateId: string;
+  jobPostingId: string;
+  jobTitle: string | null;
+  stage: "applied" | "screening" | "interview" | "offer" | "hired" | "rejected";
+  rating: number | null;
+  notes: string;
+  offerDocumentId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Candidate = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  resumeUrl: string | null;
+  linkedinUrl: string | null;
+  source: string;
+  notes: string;
+  createdAt: string;
+  applications: CandidateApplication[];
+};
+

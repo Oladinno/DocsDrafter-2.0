@@ -41,6 +41,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     name: Mapped[str] = mapped_column(String(120), default="")
+    role: Mapped[str] = mapped_column(String(30), default="admin", index=True)  # admin | hr_admin | recruiter | manager | employee
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     sessions: Mapped[list[AuthSession]] = relationship(
@@ -48,6 +49,9 @@ class User(Base):
     )
     documents: Mapped[list[Document]] = relationship(
         back_populates="owner", cascade="all, delete-orphan"
+    )
+    employee_profile: Mapped[Employee | None] = relationship(
+        back_populates="user", uselist=False
     )
 
 
@@ -120,6 +124,14 @@ class Document(Base):
     template_id: Mapped[str | None] = mapped_column(
         ForeignKey("templates.id", ondelete="SET NULL"), nullable=True
     )
+    employee_id: Mapped[str | None] = mapped_column(
+        ForeignKey("employees.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    candidate_id: Mapped[str | None] = mapped_column(
+        ForeignKey("candidates.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    category: Mapped[str] = mapped_column(String(50), default="general", index=True)  # hr_contract | offer_letter | policy | general
+    document_type: Mapped[str] = mapped_column(String(50), default="custom")  # offer_letter | nda | employment_contract | ...
     title: Mapped[str] = mapped_column(String(255), default="Untitled document")
     status: Mapped[str] = mapped_column(String(30), default="draft", index=True)
     content: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
@@ -133,6 +145,8 @@ class Document(Base):
     )
 
     owner: Mapped[User] = relationship(back_populates="documents")
+    employee: Mapped[Employee | None] = relationship(back_populates="documents")
+    candidate: Mapped[Candidate | None] = relationship(back_populates="documents")
     versions: Mapped[list[DocumentVersion]] = relationship(
         back_populates="document",
         cascade="all, delete-orphan",
@@ -210,3 +224,153 @@ class Job(Base):
 
 Index("ix_documents_owner_updated", Document.owner_id, Document.updated_at)
 Index("ix_exports_document_status", Export.document_id, Export.status)
+
+
+# ============================================================================
+# HR Management Models
+# ============================================================================
+
+
+class Department(Base):
+    __tablename__ = "departments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    name: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    code: Mapped[str] = mapped_column(String(20), unique=True, index=True)
+    description: Mapped[str] = mapped_column(Text, default="")
+    manager_id: Mapped[str | None] = mapped_column(
+        String(36), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    employees: Mapped[list[Employee]] = relationship(
+        back_populates="department", foreign_keys="Employee.department_id"
+    )
+    job_postings: Mapped[list[JobPosting]] = relationship(
+        back_populates="department", cascade="all, delete-orphan"
+    )
+
+
+class Employee(Base):
+    __tablename__ = "employees"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), unique=True, nullable=True
+    )
+    employee_code: Mapped[str] = mapped_column(String(30), unique=True, index=True)
+    first_name: Mapped[str] = mapped_column(String(60))
+    last_name: Mapped[str] = mapped_column(String(60))
+    email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
+    phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    job_title: Mapped[str] = mapped_column(String(100))
+    department_id: Mapped[str | None] = mapped_column(
+        ForeignKey("departments.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    manager_id: Mapped[str | None] = mapped_column(
+        ForeignKey("employees.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    employment_status: Mapped[str] = mapped_column(
+        String(30), default="active", index=True
+    )  # active | on_leave | terminated | onboarding
+    employment_type: Mapped[str] = mapped_column(
+        String(30), default="full_time"
+    )  # full_time | part_time | contractor | intern
+    hire_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    termination_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    salary: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    currency: Mapped[str] = mapped_column(String(10), default="USD")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+    user: Mapped[User | None] = relationship(back_populates="employee_profile")
+    department: Mapped[Department | None] = relationship(
+        back_populates="employees", foreign_keys=[department_id]
+    )
+    manager: Mapped[Employee | None] = relationship(
+        remote_side=[id], back_populates="direct_reports"
+    )
+    direct_reports: Mapped[list[Employee]] = relationship(
+        back_populates="manager"
+    )
+    documents: Mapped[list[Document]] = relationship(
+        back_populates="employee"
+    )
+
+
+class JobPosting(Base):
+    __tablename__ = "job_postings"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    title: Mapped[str] = mapped_column(String(150), index=True)
+    department_id: Mapped[str | None] = mapped_column(
+        ForeignKey("departments.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    employment_type: Mapped[str] = mapped_column(String(30), default="full_time")
+    location: Mapped[str] = mapped_column(String(100), default="Remote")
+    salary_range: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    description: Mapped[str] = mapped_column(Text, default="")
+    requirements: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(30), default="open", index=True)  # draft | open | closed
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+    department: Mapped[Department | None] = relationship(back_populates="job_postings")
+    applications: Mapped[list[CandidateApplication]] = relationship(
+        back_populates="job_posting", cascade="all, delete-orphan"
+    )
+
+
+class Candidate(Base):
+    __tablename__ = "candidates"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    first_name: Mapped[str] = mapped_column(String(60))
+    last_name: Mapped[str] = mapped_column(String(60))
+    email: Mapped[str] = mapped_column(String(320), index=True)
+    phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    resume_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    linkedin_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    source: Mapped[str] = mapped_column(String(60), default="direct")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    applications: Mapped[list[CandidateApplication]] = relationship(
+        back_populates="candidate", cascade="all, delete-orphan"
+    )
+    documents: Mapped[list[Document]] = relationship(
+        back_populates="candidate"
+    )
+
+
+class CandidateApplication(Base):
+    __tablename__ = "candidate_applications"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    candidate_id: Mapped[str] = mapped_column(
+        ForeignKey("candidates.id", ondelete="CASCADE"), index=True
+    )
+    job_posting_id: Mapped[str] = mapped_column(
+        ForeignKey("job_postings.id", ondelete="CASCADE"), index=True
+    )
+    stage: Mapped[str] = mapped_column(
+        String(30), default="applied", index=True
+    )  # applied | screening | interview | offer | hired | rejected
+    rating: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1 to 5
+    notes: Mapped[str] = mapped_column(Text, default="")
+    offer_document_id: Mapped[str | None] = mapped_column(
+        ForeignKey("documents.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+    candidate: Mapped[Candidate] = relationship(back_populates="applications")
+    job_posting: Mapped[JobPosting] = relationship(back_populates="applications")
+    offer_document: Mapped[Document | None] = relationship(foreign_keys=[offer_document_id])
